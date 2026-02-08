@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% block title %}Backup Database - FIFO Stock{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-800">Backup Database</h2>
+    <p class="text-gray-600">Backup dan restore data sistem</p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Backup Actions -->
+    <div class="lg:col-span-2">
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Backup Database</h3>
+            
+            <div class="space-y-4">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div class="flex">
+                        <i class="fas fa-info-circle text-blue-400 mt-0.5 mr-3"></i>
+                        <div>
+                            <p class="text-sm text-blue-800">
+                                Backup akan membuat salinan database SQLite dan file SQL dump.
+                                Disarankan untuk melakukan backup secara reguler.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="POST" action="{{ url_for('backup_database') }}">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Opsi Backup
+                            </label>
+                            <div class="space-y-2">
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="include_data" checked 
+                                           class="mr-2 text-blue-600 focus:ring-blue-500 rounded">
+                                    <span class="text-sm text-gray-700">Sertakan semua data</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="compress" 
+                                           class="mr-2 text-blue-600 focus:ring-blue-500 rounded">
+                                    <span class="text-sm text-gray-700">Kompresi file (ZIP)</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="encrypt" 
+                                           class="mr-2 text-blue-600 focus:ring-blue-500 rounded">
+                                    <span class="text-sm text-gray-700">Enkripsi backup</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label for="backup_name" class="block text-sm font-medium text-gray-700 mb-1">
+                                Nama Backup (Opsional)
+                            </label>
+                            <input type="text" id="backup_name" name="backup_name"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                   placeholder="Backup bulan Januari">
+                        </div>
+                        
+                        <div class="pt-4 border-t">
+                            <button type="submit" 
+                                    class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                <i class="fas fa-database mr-2"></i> Buat Backup Sekarang
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Backup List -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Daftar Backup</h3>
+            
+            {% if backups %}
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama File</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ukuran</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for backup in backups %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <i class="fas fa-database text-blue-500 mr-3"></i>
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900">{{ backup.name }}</div>
+                                        <div class="text-xs text-gray-500">
+                                            {% if backup.name.endswith('.db') %}Database{% else %}SQL Dump{% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {{ (backup.size / 1024)|round(2) }} KB
+                            </td>
+                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {{ backup.modified.strftime('%d/%m/%Y %H:%M') }}
+                            </td>
+                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                <div class="flex space-x-2">
+                                    <a href="{{ url_for('download_backup', filename=backup.name) }}" 
+                                       class="text-blue-600 hover:text-blue-900"
+                                       title="Download">
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                    <button onclick="restoreBackup('{{ backup.name }}')"
+                                            class="text-green-600 hover:text-green-900"
+                                            title="Restore">
+                                        <i class="fas fa-undo"></i>
+                                    </button>
+                                    <button onclick="deleteBackup('{{ backup.name }}')"
+                                            class="text-red-600 hover:text-red-900"
+                                            title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">
+                <i class="fas fa-database text-4xl mb-3 text-gray-300"></i>
+                <p>Belum ada backup yang tersedia.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Sidebar - Info & Restore -->
+    <div>
+        <!-- System Info -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Informasi Sistem</h3>
+            <div class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Database Size</span>
+                    <span class="font-medium">
+                        {% set db_size = 0 %}
+                        {% if os.path.exists('database/fifo.db') %}
+                            {% set db_size = (os.path.getsize('database/fifo.db') / 1024)|round(2) %}
+                        {% endif %}
+                        {{ db_size }} KB
+                    </span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Total Backup Files</span>
+                    <span class="font-medium">{{ backups|length }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Last Backup</span>
+                    <span class="font-medium">
+                        {% if backups %}
+                            {{ backups[0].modified.strftime('%d/%m/%Y') }}
+                        {% else %}
+                            Never
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Backup Location</span>
+                    <span class="font-medium">backups/</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Restore Database -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Restore Database</h3>
+            <div class="space-y-4">
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div class="flex">
+                        <i class="fas fa-exclamation-triangle text-yellow-400 mt-0.5 mr-3"></i>
+                        <div>
+                            <p class="text-sm text-yellow-800">
+                                <strong>Peringatan:</strong> Restore akan mengganti database saat ini.
+                                Pastikan Anda telah melakukan backup terbaru.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="POST" action="{{ url_for('restore_database') }}" enctype="multipart/form-data">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Pilih File Backup
+                            </label>
+                            <input type="file" name="backup_file" accept=".db,.sql"
+                                   class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Opsi Restore
+                            </label>
+                            <div class="space-y-2">
+                                <label class="flex items-center">
+                                    <input type="radio" name="restore_type" value="full" checked
+                                           class="mr-2 text-blue-600 focus:ring-blue-500">
+                                    <span class="text-sm text-gray-700">Full Restore</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="radio" name="restore_type" value="data_only"
+                                           class="mr-2 text-blue-600 focus:ring-blue-500">
+                                    <span class="text-sm text-gray-700">Data Only</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="pt-2">
+                            <button type="submit"
+                                    class="w-full px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                                    onclick="return confirm('Restore akan mengganti semua data. Lanjutkan?')">
+                                <i class="fas fa-undo mr-2"></i> Restore Database
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Auto Backup -->
+        <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow p-6 text-white">
+            <h3 class="text-lg font-semibold mb-4">Auto Backup</h3>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <span>Status</span>
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                        Aktif
+                    </span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span>Frekuensi</span>
+                    <span>Harian</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span>Next Backup</span>
+                    <span>{{ (now + timedelta(days=1)).strftime('%d/%m/%Y') }}</span>
+                </div>
+                
+                <div class="pt-2">
+                    <button onclick="runAutoBackup()"
+                            class="w-full py-2 bg-white text-blue-600 rounded-lg hover:bg-gray-100">
+                        <i class="fas fa-play mr-2"></i> Jalankan Sekarang
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Restore Confirmation Modal -->
+<div id="restoreModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full m-4">
+        <div class="p-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">Konfirmasi Restore</h3>
+            <p id="restoreFileName" class="text-gray-600 mb-4"></p>
+            
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <div class="flex">
+                    <i class="fas fa-exclamation-triangle text-yellow-400 mt-0.5 mr-3"></i>
+                    <div>
+                        <p class="text-sm text-yellow-800">
+                            Restore akan mengganti semua data saat ini dengan data dari backup.
+                            Pastikan Anda telah melakukan backup terbaru sebelum melanjutkan.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeRestoreModal()"
+                        class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                    Batal
+                </button>
+                <button id="confirmRestoreBtn"
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                    Ya, Restore
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentBackupFile = '';
+    
+    // Restore backup
+    function restoreBackup(filename) {
+        currentBackupFile = filename;
+        document.getElementById('restoreFileName').textContent = `Restore dari file: ${filename}`;
+        document.getElementById('restoreModal').classList.remove('hidden');
+    }
+    
+    function closeRestoreModal() {
+        document.getElementById('restoreModal').classList.add('hidden');
+        currentBackupFile = '';
+    }
+    
+    // Handle restore confirmation
+    document.getElementById('confirmRestoreBtn').addEventListener('click', function() {
+        if (!currentBackupFile) return;
+        
+        fetch('{{ url_for("restore_backup") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                filename: currentBackupFile
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Restore berhasil! Sistem akan restart.');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                alert('Gagal restore: ' + data.error);
+            }
+            closeRestoreModal();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Terjadi kesalahan saat restore');
+            closeRestoreModal();
+        });
+    });
+    
+    // Delete backup
+    function deleteBackup(filename) {
+        if (confirm(`Hapus backup ${filename}?`)) {
+            fetch('{{ url_for("delete_backup") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    filename: filename
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Backup berhasil dihapus!');
+                    window.location.reload();
+                } else {
+                    alert('Gagal menghapus backup: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Terjadi kesalahan saat menghapus backup');
+            });
+        }
+    }
+    
+    // Run auto backup
+    function runAutoBackup() {
+        fetch('{{ url_for("run_auto_backup") }}')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Auto backup berhasil dijalankan!');
+                window.location.reload();
+            } else {
+                alert('Gagal menjalankan auto backup: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Terjadi kesalahan saat menjalankan auto backup');
+        });
+    }
+    
+    // Close modal on ESC key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeRestoreModal();
+        }
+    });
+    
+    // Close modal when clicking outside
+    document.getElementById('restoreModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeRestoreModal();
+        }
+    });
+</script>
+{% endblock %}
